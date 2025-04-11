@@ -49,6 +49,12 @@ int get_free_inode()
 	return -1;
 }
 
+int set_free_inode(int inode) {
+	set_bit(inodeMap, inode, 0);
+	superBlock.freeInodeCount++;
+	return 0;
+}
+
 int get_free_block()
 {
 	int i = 0;
@@ -62,6 +68,12 @@ int get_free_block()
 	}
 
 	return -1;
+}
+
+int set_free_block(int block) {
+	set_bit(blockMap, block, 0);
+	superBlock.freeBlockCount++;
+	return 0;
 }
 
 int format_timeval(struct timeval *tv, char *buf, size_t sz)

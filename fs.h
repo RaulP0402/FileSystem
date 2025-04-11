@@ -28,7 +28,7 @@ typedef struct {
 		int directBlock[12];
 		int link_count; // for hardlink
 		char padding[16];
-} Inode; // 128 byte
+} Inode; // 128 bytes
 
 typedef struct {
 		char name[MAX_FILE_NAME];

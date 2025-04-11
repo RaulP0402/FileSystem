@@ -203,7 +203,7 @@ int file_cat(char *name)
 {
 	int inodeNum, i, size;
 	char str_buffer[512];
-	char * str;
+	char* str;
 
 	//get inode
 	inodeNum = search_cur_dir(name);
@@ -285,9 +285,11 @@ int file_stat(char *name)
 
 int file_remove(char *name)
 {
-	int inodeNum;
+	int inodeNum, i;
 
+	// Get Inode NUmber
 	inodeNum = search_cur_dir(name);
+
 	if (inodeNum < 0) {
 		printf("Error: File %s not found\n", name);
 		return -1;
@@ -296,20 +298,32 @@ int file_remove(char *name)
 		printf("Error: %s is a directory\n", name);
 	}
 
-	Inode curInode = inode[inodeNum];
-
 	// Decrease link count
-	curInode.link_count--;
+	inode[inodeNum].link_count--;
 
-	// If link count == 0, remove file
+	// If others are linked to this, don't remove
+	if (inode[inodeNum].link_count != 0) {
+		gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+		return 0;
+	}
 
-	// Unset the dataMap bits for each data block
-	// Remove the dataBlocks for this file
+	// Unset data bits
+	for (i = 0; i < inode[inodeNum].blockCount; i++) {
+		set_free_block(inode[inodeNum].directBlock[i]);
+	}
 
-	// Unset the iMap bit
-	// Remove the iNode block for this file 
+	// Unset i node bit
+	set_free_inode(inodeNum);
 
-	printf("Error: rm is not implemented.\n");
+	// Remove from current directory
+	for (i = 0; i < MAX_DIR_ENTRY; i++) {
+		if (command(name, curDir.dentry[i].name)){
+			curDir.numEntry--;
+			curDir.dentry[i].name[0] = '\0';
+		}
+	}
+
+	printf("File %s created.\n", name);
 	return 0;
 }
 
@@ -378,7 +392,39 @@ int fs_stat()
 
 int hard_link(char *src, char *dest)
 {
-	printf("Error: ln is not implemented.\n");
+	int srcInode, destInode;
+	
+	// Check that src exists & not directory
+	srcInode = search_cur_dir(src);
+	if (srcInode < 0) {
+		printf("Error: %s does not exist.\n", src);
+		return -1;
+	}
+	if (inode[srcInode].type == directory) {
+		printf("Error: %s is a directory.\n", src);
+		return -1;
+	}
+
+	// Check that dest doest not exist & not directory
+	destInode = search_cur_dir(dest);
+	if (destInode >= 0) {
+		printf("Error: %s exist.\n", dest);
+		return -1;
+	}
+	if (inode[destInode].type == directory) {
+		printf("Error: %s is a directory.\n", dest);
+	}
+
+	// Link dest
+	strncpy(curDir.dentry[curDir.numEntry].name, dest, strlen(dest));
+	curDir.dentry[curDir.numEntry].name[strlen(dest)] = '\0';
+	curDir.dentry[curDir.numEntry].inode = srcInode;
+	curDir.numEntry++;
+
+	// Update src Inode
+	inode[srcInode].link_count++;
+
+	printf("Created hard link:  %s-->%s\n", dest, src);
 	return 0;
 }
 
