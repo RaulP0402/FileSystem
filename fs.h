@@ -7,6 +7,8 @@
 #define SMALL_FILE 6144
 #define MAGIC_NUMBER 0x1234FFFF
 #define MAX_DIR_ENTRY BLOCK_SIZE / sizeof(DirectoryEntry)
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > b ? (a) : (b))
 
 typedef enum {file, directory} TYPE;
 

@@ -254,7 +254,70 @@ int file_cat(char *name)
 
 int file_read(char *name, int offset, int size)
 {
-	printf("Error: read is not implemented.\n");
+	int curInode, start, end, i, block;
+	char str_buffer[512];
+	char* str;
+
+	curInode = search_cur_dir(name);
+	if (curInode < 0) {
+		printf("Error: %s does not exist.\n", name);
+		return -1;
+	}
+	if (inode[curInode].type == directory) {
+		printf("Error: %s is a directory.\n", name);
+		return -1;
+	}
+	
+	// Calculate starting block & ending block
+	start = offset / BLOCK_SIZE;
+	end = min((offset + size) / BLOCK_SIZE, inode[curInode].blockCount - 1);
+
+	// Check that start is inbounds
+	if (start >= inode[curInode].blockCount) {
+		printf("Error: Offset %i is larger than file.\n", offset);
+		return -1;
+	}
+
+	// allocate string
+	str = (char*)malloc(sizeof(char) * (size+1));
+
+	// If starting at the middle of some block
+	if (offset % BLOCK_SIZE != 0) {
+		char sliced_buffer[512];
+		int startOffset;
+		block = inode[curInode].directBlock[start];
+
+		disk_read( block, str_buffer );
+
+		startOffset = (offset % BLOCK_SIZE);
+		// Copy only the 'cut' we need
+		strncpy(sliced_buffer, str_buffer + startOffset, 512 - startOffset);
+
+		// Copy that into str
+		memcpy(str, sliced_buffer, 512 - startOffset);
+		start++;
+	}
+
+	// Read middle blocks until end
+	for (i = start; i <= end; i++) {
+		int block;
+
+		block = inode[curInode].directBlock[i];
+
+		disk_read( block, str_buffer );
+
+		memcpy(str, str_buffer, min(BLOCK_SIZE, size));
+		size -= BLOCK_SIZE;
+	}
+
+	printf("%s\n", str);
+	
+	// Updaet last access
+	gettimeofday(&(inode[curInode].lastAccess), NULL);
+
+	// Free dynamic memory
+	free(str);
+
 	return 0;
 }
 
@@ -423,6 +486,7 @@ int hard_link(char *src, char *dest)
 
 	// Update src Inode
 	inode[srcInode].link_count++;
+	gettimeofday(&(inode[srcInode].lastAccess), NULL);
 
 	printf("Created hard link:  %s-->%s\n", dest, src);
 	return 0;
