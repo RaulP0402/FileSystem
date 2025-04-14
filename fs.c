@@ -13,6 +13,8 @@ SuperBlock superBlock;
 Dentry curDir;
 int curDirBlock;
 
+int ls();
+
 int fs_mount(char *name)
 {
 	int numInodeBlock =  (sizeof(Inode)*MAX_INODE)/ BLOCK_SIZE;
@@ -298,7 +300,7 @@ int file_read(char *name, int offset, int size)
 		start++;
 	}
 
-	// Read middle blocks until end
+	// Read rest of blocks
 	for (i = start; i <= end; i++) {
 		int block;
 
@@ -320,7 +322,6 @@ int file_read(char *name, int offset, int size)
 
 	return 0;
 }
-
 
 int file_stat(char *name)
 {
@@ -392,7 +393,67 @@ int file_remove(char *name)
 
 int dir_make(char* name)
 {
-	printf("Error: mkdir is not implemented.\n");
+	int newInode;
+
+	// Make sure directory doesn't alrady exist
+	newInode = search_cur_dir(name);
+	if (newInode >= 0) {
+		printf("Error: %s already exists.\n", name);
+		return -1;
+	}
+
+	// Make sure curDir has enough room for one more entry
+	if (curDir.numEntry + 1 > MAX_DIR_ENTRY) {
+		printf("Error: Directory is full.\n");
+		return -1;
+	}
+	
+	// Get block
+	int block = get_free_block();
+	if (block < 0) {
+		printf("Error: No free blocks.\n");
+		return -1;
+	}
+
+	// Get inode
+	newInode = get_free_inode();
+	if (newInode < 0) {
+		printf("Error: No free inodes.\n");
+		return -1;
+	}
+
+	inode[newInode].type = directory;
+	inode[newInode].owner = inode[curDir.dentry[0].inode].owner;
+	inode[newInode].group = inode[curDir.dentry[0].inode].group;
+	gettimeofday(&(inode[newInode].created), NULL);
+	gettimeofday(&(inode[newInode].lastAccess), NULL);
+	inode[newInode].size = 1;
+	inode[newInode].blockCount = 1;
+	inode[newInode].directBlock[0] = block;
+
+	// Place new directory in current directory
+	strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
+	curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
+	curDir.dentry[curDir.numEntry].inode = newInode;
+	curDir.numEntry++;
+	disk_write(curDirBlock, (char*)&curDir);
+
+	// Create new directory
+	Dentry newDir;
+	newDir.numEntry = 2;
+
+	// add "." (curDir) entry
+	strncpy(newDir.dentry[0].name, ".", 1);
+	newDir.dentry[0].name[1] = '\0';
+	newDir.dentry[0].inode = newInode;
+	
+	// Add ".." (parentDir) entry
+	strncpy(newDir.dentry[1].name, "..", 2);
+	newDir.dentry[1].name[2] = '\0';
+	newDir.dentry[1].inode = curDir.dentry[0].inode;
+	
+	disk_write(block, (char*)&newDir);
+
 	return 0;
 }
 
